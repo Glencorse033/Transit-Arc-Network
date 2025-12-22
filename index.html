@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TRANSIT ARC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              futuristic: ['Orbitron', 'sans-serif'],
+              mono: ['Space Mono', 'monospace'],
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      body { 
+        font-family: 'Inter', sans-serif; 
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+      /* Custom scrollbar */
+      ::-webkit-scrollbar { width: 6px; }
+      .dark ::-webkit-scrollbar-track { background: #09090b; }
+      .dark ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+      
+      ::-webkit-scrollbar-track { background: #f4f4f5; }
+      ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 3px; }
+      
+      .glass {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(12px);
+      }
+      .dark .glass {
+        background: rgba(9, 9, 11, 0.7);
+        backdrop-filter: blur(12px);
+      }
+      
+      .font-futuristic { font-family: 'Orbitron', sans-serif; }
+      .font-mono-tech { font-family: 'Space Mono', monospace; }
+      .font-inter { font-family: 'Inter', sans-serif; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "qrcode.react": "https://aistudiocdn.com/qrcode.react@^4.2.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-zinc-50 text-zinc-900 dark:bg-black dark:text-white transition-colors duration-300">
+    <div id="root"></div>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "Copy of TRANSIT ARC",
+  "description": "A decentralized payment platform for public transport. Passengers pay via USDC or generate links for others to pay. Operators manage routes and revenue.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
