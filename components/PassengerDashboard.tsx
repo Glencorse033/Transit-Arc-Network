@@ -5,7 +5,7 @@ import { TicketCard } from './TicketCard.tsx';
 import { 
   MapPin, Bus, Train, Ship, Share2, ArrowRight, Wallet, 
   Check, Copy, Clock, Loader2, ArrowLeft, Search, 
-  MessageSquare, Users, Sparkles, Map as MapIcon 
+  MessageSquare, Users, Sparkles, Map as MapIcon, AlertCircle, RefreshCw
 } from 'lucide-react';
 
 interface Props {
@@ -18,6 +18,7 @@ interface Props {
 export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWallet, onCreateLink, onJoinChat }) => {
   const [routes, setRoutes] = useState<TransitRoute[]>([]);
   const [loadingRoutes, setLoadingRoutes] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [city, setCity] = useState("San Francisco");
   const [selectedRoute, setSelectedRoute] = useState<TransitRoute | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -28,9 +29,18 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
 
   const fetchRoutes = async (cityName: string) => {
     setLoadingRoutes(true);
-    const result = await generateRoutes(cityName);
-    setRoutes(result);
-    setLoadingRoutes(false);
+    setError(null);
+    try {
+      const result = await generateRoutes(cityName);
+      if (result.length === 0) {
+        setError("No routes found or API error. Check browser console.");
+      }
+      setRoutes(result);
+    } catch (err) {
+      setError("Failed to fetch transit data. Please try again.");
+    } finally {
+      setLoadingRoutes(false);
+    }
   };
 
   const handlePaySelf = () => {
@@ -107,6 +117,24 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
               {[1, 2, 3, 4].map(i => (
                 <div key={i} className="h-56 md:h-64 rounded-3xl bg-zinc-100 dark:bg-zinc-900 animate-pulse border border-zinc-200 dark:border-zinc-800" />
               ))}
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-16 bg-red-500/5 border border-red-500/20 rounded-3xl text-center px-6">
+               <AlertCircle size={32} className="text-red-500 mb-4" />
+               <h3 className="text-lg font-bold mb-2">Oops! Something went wrong</h3>
+               <p className="text-sm text-zinc-500 max-w-xs mb-6">{error}</p>
+               <button 
+                onClick={() => fetchRoutes(city)}
+                className="flex items-center gap-2 px-6 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-xl font-bold text-sm"
+               >
+                 <RefreshCw size={16} />
+                 Try Again
+               </button>
+            </div>
+          ) : routes.length === 0 ? (
+            <div className="text-center py-20 opacity-50">
+               <MapIcon size={48} className="mx-auto mb-4" />
+               <p>No routes available in this location.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
