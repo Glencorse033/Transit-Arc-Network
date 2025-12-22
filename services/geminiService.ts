@@ -1,7 +1,8 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { TransitRoute, AnalyticsData, ChatMessage } from "../types.ts";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 const getDestinationImage = (type: string): string => {
   const images: Record<string, string> = {
@@ -73,7 +74,10 @@ export const getChatCommuterMessage = async (route: TransitRoute, history: ChatM
       }
     });
 
-    const data = JSON.parse(response.text);
+    const text = response.text;
+    if (!text) throw new Error("No response text");
+    
+    const data = JSON.parse(text);
     return {
       id: Math.random().toString(36).substr(2, 9),
       sender: data.sender,
@@ -94,7 +98,11 @@ export const generateAnalytics = async (): Promise<AnalyticsData> => {
       contents: `Generate mock analytics data for a transit operator dashboard. JSON only.`, 
       config: { responseMimeType: "application/json" } 
     });
-    return JSON.parse(response.text) as AnalyticsData;
+    
+    const text = response.text;
+    if (!text) throw new Error("No analytics data");
+    
+    return JSON.parse(text) as AnalyticsData;
   } catch (error) {
     return { dailyRevenue: [], popularRoutes: [], totalRevenue: 0, activeRiders: 0 };
   }
