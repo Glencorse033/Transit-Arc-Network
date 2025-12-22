@@ -2,7 +2,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TransitRoute, AnalyticsData, ChatMessage } from "../types.ts";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+/**
+ * Safely parse JSON from AI response, stripping any markdown code block wrappers
+ */
+const parseAIJson = (text: string) => {
+  try {
+    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("AI JSON Parse Error:", e, "Original text snippet:", text.slice(0, 100));
+    return null;
+  }
+};
 
 const getDestinationImage = (type: string): string => {
   const images: Record<string, string> = {
@@ -16,6 +27,8 @@ const getDestinationImage = (type: string): string => {
 };
 
 export const generateRoutes = async (city: string): Promise<TransitRoute[]> => {
+  // Create a new instance right before making an API call to ensure it uses the most up-to-date API key
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -45,7 +58,9 @@ export const generateRoutes = async (city: string): Promise<TransitRoute[]> => {
     const text = response.text;
     if (!text) return [];
     
-    const rawRoutes = JSON.parse(text);
+    const rawRoutes = parseAIJson(text);
+    if (!rawRoutes || !Array.isArray(rawRoutes)) return [];
+    
     return rawRoutes.map((r: any) => ({
       ...r,
       imageUrl: getDestinationImage(r.destinationType)
@@ -57,11 +72,12 @@ export const generateRoutes = async (city: string): Promise<TransitRoute[]> => {
 };
 
 export const getChatCommuterMessage = async (route: TransitRoute, history: ChatMessage[]): Promise<ChatMessage> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   try {
     const chatContext = history.map(m => `${m.sender}: ${m.text}`).join('\n');
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `You are a passenger on the ${route.name} route. Context: ${chatContext}. Write a 1-sentence message. Return JSON with "sender" and "text".`,
+      contents: `You are a passenger on the ${route.name} route. Context: ${chatContext}. Write a 1-sentence message as a helpful commuter. Return JSON with "sender" and "text".`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -69,7 +85,8 @@ export const getChatCommuterMessage = async (route: TransitRoute, history: ChatM
           properties: {
             sender: { type: Type.STRING },
             text: { type: Type.STRING }
-          }
+          },
+          required: ["sender", "text"]
         }
       }
     });
@@ -77,7 +94,9 @@ export const getChatCommuterMessage = async (route: TransitRoute, history: ChatM
     const text = response.text;
     if (!text) throw new Error("No response text");
     
-    const data = JSON.parse(text);
+    const data = parseAIJson(text);
+    if (!data) throw new Error("Invalid AI response format");
+
     return {
       id: Math.random().toString(36).substr(2, 9),
       sender: data.sender,
@@ -87,35 +106,70 @@ export const getChatCommuterMessage = async (route: TransitRoute, history: ChatM
       isAi: true
     };
   } catch (e) {
-    return { id: 'fallback', sender: 'Commuter_Anon', senderAddress: '0x123...456', text: 'On my way!', timestamp: Date.now(), isAi: true };
+    console.error("Chat AI error:", e);
+    return { id: 'fallback', sender: 'Commuter_Anon', senderAddress: '0x123...456', text: 'On my way! Traffic seems light today.', timestamp: Date.now(), isAi: true };
   }
 };
 
 export const generateAnalytics = async (): Promise<AnalyticsData> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   try {
     const response = await ai.models.generateContent({ 
       model: "gemini-3-flash-preview", 
-      contents: `Generate mock analytics data for a transit operator dashboard. JSON only.`, 
-      config: { responseMimeType: "application/json" } 
+      contents: `Generate mock analytics data for a transit operator dashboard for the last 7 days. JSON only.`, 
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            dailyRevenue: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  date: { type: Type.STRING },
+                  amount: { type: Type.NUMBER }
+                }
+              }
+            },
+            popularRoutes: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  ticketsSold: { type: Type.NUMBER }
+                }
+              }
+            },
+            totalRevenue: { type: Type.NUMBER },
+            activeRiders: { type: Type.NUMBER }
+          },
+          required: ["dailyRevenue", "popularRoutes", "totalRevenue", "activeRiders"]
+        }
+      } 
     });
     
     const text = response.text;
     if (!text) throw new Error("No analytics data");
     
-    return JSON.parse(text) as AnalyticsData;
+    const data = parseAIJson(text);
+    return data || { dailyRevenue: [], popularRoutes: [], totalRevenue: 0, activeRiders: 0 };
   } catch (error) {
+    console.error("Analytics Gen Error:", error);
     return { dailyRevenue: [], popularRoutes: [], totalRevenue: 0, activeRiders: 0 };
   }
 };
 
 export const generateVaultInsights = async (balance: number, points: number): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   try {
     const response = await ai.models.generateContent({ 
       model: "gemini-3-flash-preview", 
-      contents: `Short tip for transit app user with ${balance} USDC. 1 sentence.` 
+      contents: `Short tip for transit app user with ${balance} USDC in vault and ${points} loyalty points. Keep it to one short sentence.` 
     });
     return response.text || "Deposit more to earn higher yield!";
   } catch (e) {
-    return "Lock your USDC for rewards!";
+    return "Lock your USDC for rewards and early access to route upgrades!";
   }
 };
