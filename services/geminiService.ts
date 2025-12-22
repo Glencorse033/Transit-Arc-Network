@@ -1,33 +1,24 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { TransitRoute, AnalyticsData, ChatMessage } from "../types";
+import { TransitRoute, AnalyticsData, ChatMessage } from "../types.ts";
 
-const apiKey = process.env.API_KEY || "";
-const ai = new GoogleGenAI({ apiKey });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Helper to get image based on destination type
 const getDestinationImage = (type: string): string => {
   const images: Record<string, string> = {
-    'URBAN': 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&q=80', // City
-    'NATURE': 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&q=80', // Mountains/Nature
-    'COASTAL': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80', // Beach
-    'AIRPORT': 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800&q=80', // Airport
-    'SUBURBAN': 'https://images.unsplash.com/photo-1580674285054-bed31e145f59?w=800&q=80', // Street
+    'URBAN': 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&q=80',
+    'NATURE': 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&q=80',
+    'COASTAL': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80',
+    'AIRPORT': 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800&q=80',
+    'SUBURBAN': 'https://images.unsplash.com/photo-1580674285054-bed31e145f59?w=800&q=80',
   };
   return images[type] || images['URBAN'];
 };
 
 export const generateRoutes = async (city: string): Promise<TransitRoute[]> => {
   try {
-    const model = "gemini-2.5-flash";
-    const prompt = `Generate 5 realistic public transit routes for ${city}. 
-    Include a mix of Bus, Metro, and Train. 
-    Prices should be reasonable (between 1.5 and 15.0 USDC).
-    Classify the destination vibe as one of: URBAN, NATURE, COASTAL, AIRPORT, SUBURBAN.
-    Return JSON only.`;
-
     const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
+      model: "gemini-3-flash-preview",
+      contents: `Generate 5 realistic public transit routes for ${city}. Include a mix of Bus, Metro, and Train. Return JSON only.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -58,29 +49,18 @@ export const generateRoutes = async (city: string): Promise<TransitRoute[]> => {
       ...r,
       imageUrl: getDestinationImage(r.destinationType)
     })) as TransitRoute[];
-
   } catch (error) {
     console.error("Gemini Route Gen Error:", error);
-    return [
-      { id: "r1", name: "Metro Blue Line", origin: "Central Station", destination: "Airport Terminal 1", price: 5.50, schedule: "Every 5 mins", type: "METRO", imageUrl: getDestinationImage('AIRPORT') },
-      { id: "r2", name: "Bus 101", origin: "Downtown", destination: "North Hills", price: 2.00, schedule: "Every 15 mins", type: "BUS", imageUrl: getDestinationImage('URBAN') },
-    ];
+    return [];
   }
 };
 
 export const getChatCommuterMessage = async (route: TransitRoute, history: ChatMessage[]): Promise<ChatMessage> => {
   try {
-    const model = "gemini-2.5-flash";
     const chatContext = history.map(m => `${m.sender}: ${m.text}`).join('\n');
-    const prompt = `You are a passenger on the ${route.name} transit route (traveling from ${route.origin} to ${route.destination}). 
-    The current chat history is:\n${chatContext}\n
-    Write a short, realistic 1-sentence message to the group. You could be complaining about a slight delay, mentioning the nice weather, asking if anyone left an umbrella, or just greeting the group. 
-    Pick a random name for yourself (e.g. Commuter_92, Alex, TechVoyager).
-    Return JSON with "sender" and "text" fields.`;
-
     const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
+      model: "gemini-3-flash-preview",
+      contents: `You are a passenger on the ${route.name} route. Context: ${chatContext}. Write a 1-sentence message. Return JSON with "sender" and "text".`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -103,37 +83,29 @@ export const getChatCommuterMessage = async (route: TransitRoute, history: ChatM
       isAi: true
     };
   } catch (e) {
-    return {
-      id: 'fallback',
-      sender: 'Commuter_Anon',
-      senderAddress: '0x123...456',
-      text: 'Great weather for a ride today!',
-      timestamp: Date.now(),
-      isAi: true
-    };
+    return { id: 'fallback', sender: 'Commuter_Anon', senderAddress: '0x123...456', text: 'On my way!', timestamp: Date.now(), isAi: true };
   }
 };
 
 export const generateAnalytics = async (): Promise<AnalyticsData> => {
   try {
-    const model = "gemini-2.5-flash";
-    const prompt = `Generate mock analytics data for a transit operator dashboard. JSON only.`;
-    const response = await ai.models.generateContent({ model, contents: prompt, config: { responseMimeType: "application/json" } });
+    const response = await ai.models.generateContent({ 
+      model: "gemini-3-flash-preview", 
+      contents: `Generate mock analytics data for a transit operator dashboard. JSON only.`, 
+      config: { responseMimeType: "application/json" } 
+    });
     return JSON.parse(response.text) as AnalyticsData;
   } catch (error) {
-    return {
-      dailyRevenue: [{ date: "Mon", amount: 1200 }, { date: "Tue", amount: 1450 }],
-      popularRoutes: [{ name: "Metro Blue Line", ticketsSold: 850 }],
-      totalRevenue: 15420.50,
-      activeRiders: 342,
-    };
+    return { dailyRevenue: [], popularRoutes: [], totalRevenue: 0, activeRiders: 0 };
   }
 };
 
 export const generateVaultInsights = async (balance: number, points: number): Promise<string> => {
   try {
-    const model = "gemini-2.5-flash";
-    const response = await ai.models.generateContent({ model, contents: `Short tip for transit app user with ${balance} USDC balance. 1 sentence.` });
+    const response = await ai.models.generateContent({ 
+      model: "gemini-3-flash-preview", 
+      contents: `Short tip for transit app user with ${balance} USDC. 1 sentence.` 
+    });
     return response.text || "Deposit more to earn higher yield!";
   } catch (e) {
     return "Lock your USDC for rewards!";
