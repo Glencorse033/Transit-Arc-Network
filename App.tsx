@@ -15,7 +15,7 @@ interface AppSettings {
 }
 
 const TransitArcLogo = () => (
-  <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-indigo-500">
+  <svg width="32" height="32" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-indigo-500 flex-shrink-0">
     <defs>
       <linearGradient id="logoGradient" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
         <stop offset="0%" stopColor="#6366f1" />
@@ -133,26 +133,26 @@ export default function App() {
     <div className={`min-h-screen transition-colors duration-500 ${settings.theme === 'dark' ? 'bg-black text-white' : 'bg-zinc-50 text-zinc-900'} selection:bg-indigo-500 selection:text-white flex flex-col`}>
       <nav className={`sticky top-0 z-50 border-b transition-all duration-300 ${settings.visualStyle === 'glass' ? 'glass border-zinc-900/10 dark:border-zinc-900/50' : 'bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setView(UserRole.PASSENGER)}>
+          <div className="flex justify-between items-center h-16 md:h-20">
+            <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity overflow-hidden" onClick={() => setView(UserRole.PASSENGER)}>
                <TransitArcLogo />
-               <div className="flex flex-col leading-none">
-                  <span className="font-bold text-xl tracking-tighter uppercase">TRANSIT <span className="text-indigo-500">ARC</span></span>
-                  <span className="text-[10px] text-zinc-500 font-mono tracking-widest uppercase">Decentralized Mobility</span>
+               <div className="flex flex-col leading-none whitespace-nowrap">
+                  <span className="font-bold text-base md:text-xl tracking-tighter uppercase">TRANSIT <span className="text-indigo-500">ARC</span></span>
+                  <span className="hidden xs:block text-[8px] md:text-[10px] text-zinc-500 font-mono tracking-widest uppercase">Decentralized Mobility</span>
                </div>
             </div>
 
-            <div className={`hidden md:flex items-center space-x-1 p-1 rounded-full border transition-colors ${settings.theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-zinc-200/50 border-zinc-300'}`}>
+            <div className={`hidden lg:flex items-center space-x-1 p-1 rounded-full border transition-colors ${settings.theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-zinc-200/50 border-zinc-300'}`}>
                <button onClick={() => setView(UserRole.PASSENGER)} className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-300 ${view === UserRole.PASSENGER ? 'bg-white text-black shadow-lg dark:bg-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'}`}>Passenger</button>
                <button onClick={() => setView('VAULT')} className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-300 ${view === 'VAULT' ? 'bg-white text-black shadow-lg' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'}`}>Vault</button>
                <button onClick={() => setView(UserRole.OPERATOR)} className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-300 ${view === UserRole.OPERATOR ? 'bg-white text-black shadow-lg' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'}`}>Operator</button>
                <button onClick={() => openLinkPayment()} className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-300 ${view === 'LINK_PAYMENT' ? 'bg-white text-black shadow-lg' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'}`}>Pay Link</button>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} className={`p-2.5 rounded-full border transition-all ${settings.theme === 'dark' ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border-zinc-200 text-zinc-600 hover:text-zinc-900 shadow-sm'}`}>
-                   <SettingsIcon size={18} className={`${isSettingsOpen ? 'rotate-90' : 'rotate-0'} transition-transform duration-300`} />
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="relative hidden sm:block">
+                <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} className={`p-2 rounded-full border transition-all ${settings.theme === 'dark' ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border-zinc-200 text-zinc-600 hover:text-zinc-900 shadow-sm'}`}>
+                   <SettingsIcon size={16} className={`${isSettingsOpen ? 'rotate-90' : 'rotate-0'} transition-transform duration-300`} />
                 </button>
                 {isSettingsOpen && (
                   <div className={`absolute right-0 mt-3 w-64 rounded-2xl border p-4 shadow-2xl animate-in fade-in zoom-in-95 origin-top-right z-50 ${settings.theme === 'dark' ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
@@ -164,45 +164,34 @@ export default function App() {
                         <button onClick={() => setSettings(s => ({...s, theme: 'dark'}))} className={`flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-bold transition-all ${settings.theme === 'dark' ? 'bg-zinc-800 text-indigo-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}><Moon size={14} /> Dark</button>
                       </div>
                     </div>
-                    <div className="mb-4">
-                      <p className="text-xs font-medium mb-2 opacity-60">Typography</p>
-                      <div className="flex flex-col gap-1">
-                        {[{ id: 'inter', name: 'Inter (Sans)', class: 'font-inter' }, { id: 'futuristic', name: 'Orbitron (Futur)', class: 'font-futuristic' }, { id: 'mono', name: 'Space Mono (Tech)', class: 'font-mono-tech' }].map((f) => (
-                          <button key={f.id} onClick={() => setSettings(s => ({...s, font: f.id as any}))} className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all ${settings.font === f.id ? 'bg-indigo-500/10 text-indigo-500 font-bold border border-indigo-500/20' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500'}`}>
-                            <span className={f.class}>{f.name}</span>
-                            {settings.font === f.id && <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 )}
               </div>
               <WalletButton walletState={wallet} onConnect={connectWallet} onDisconnect={disconnectWallet} />
-              <button className="md:hidden p-2 text-zinc-400 hover:text-white transition-colors" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-                 {isMenuOpen ? <X /> : <Menu />}
+              <button className="lg:hidden p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                 {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
             </div>
           </div>
         </div>
         {isMenuOpen && (
-          <div className={`md:hidden border-t absolute w-full shadow-2xl transition-colors ${settings.theme === 'dark' ? 'border-zinc-900 bg-zinc-950' : 'border-zinc-200 bg-white'}`}>
-             <div className="px-4 py-3 space-y-2">
-               <button onClick={() => { setView(UserRole.PASSENGER); setIsMenuOpen(false); }} className="block w-full text-left px-3 py-3 rounded-lg text-base font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900">Passenger</button>
-               <button onClick={() => { setView('VAULT'); setIsMenuOpen(false); }} className="block w-full text-left px-3 py-3 rounded-lg text-base font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900">Vault & Rewards</button>
-               <button onClick={() => { setView(UserRole.OPERATOR); setIsMenuOpen(false); }} className="block w-full text-left px-3 py-3 rounded-lg text-base font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900">Operator Portal</button>
-               <button onClick={() => { openLinkPayment(); setIsMenuOpen(false); }} className="block w-full text-left px-3 py-3 rounded-lg text-base font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900">Pay for Others</button>
+          <div className={`lg:hidden border-t absolute w-full shadow-2xl z-50 animate-in slide-in-from-top duration-300 ${settings.theme === 'dark' ? 'border-zinc-900 bg-zinc-950' : 'border-zinc-200 bg-white'}`}>
+             <div className="px-4 py-4 space-y-2">
+               <button onClick={() => { setView(UserRole.PASSENGER); setIsMenuOpen(false); }} className={`block w-full text-left px-4 py-3 rounded-xl text-base font-bold ${view === UserRole.PASSENGER ? 'bg-indigo-500/10 text-indigo-500' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900'}`}>Passenger Portal</button>
+               <button onClick={() => { setView('VAULT'); setIsMenuOpen(false); }} className={`block w-full text-left px-4 py-3 rounded-xl text-base font-bold ${view === 'VAULT' ? 'bg-indigo-500/10 text-indigo-500' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900'}`}>Vault & Rewards</button>
+               <button onClick={() => { setView(UserRole.OPERATOR); setIsMenuOpen(false); }} className={`block w-full text-left px-4 py-3 rounded-xl text-base font-bold ${view === UserRole.OPERATOR ? 'bg-indigo-500/10 text-indigo-500' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900'}`}>Operator Portal</button>
+               <button onClick={() => { openLinkPayment(); setIsMenuOpen(false); }} className={`block w-full text-left px-4 py-3 rounded-xl text-base font-bold ${view === 'LINK_PAYMENT' ? 'bg-indigo-500/10 text-indigo-500' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900'}`}>Pay for Others</button>
              </div>
           </div>
         )}
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-1">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-12 flex-1 w-full">
         {view === UserRole.PASSENGER && (
-          <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <div className="mb-12 text-center">
-                <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight">The Future of Transit</h1>
-                <p className="text-zinc-500 dark:text-zinc-400 text-lg max-w-lg mx-auto">Seamless payments on the Arc Network. Book tickets instantly or chat with fellow commuters.</p>
+          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="mb-8 md:mb-12 text-center px-2">
+                <h1 className="text-3xl md:text-5xl font-bold mb-3 md:mb-4 tracking-tight leading-tight">The Future of <span className="text-indigo-500">Transit</span></h1>
+                <p className="text-zinc-500 dark:text-zinc-400 text-sm md:text-lg max-w-lg mx-auto">Seamless payments on the Arc Network. Book tickets instantly or chat with fellow commuters.</p>
              </div>
              <PassengerDashboard walletState={wallet} onUpdateWallet={updateBalance} onCreateLink={createLink} onJoinChat={openChat} />
           </div>
@@ -211,10 +200,10 @@ export default function App() {
         {view === 'VAULT' && (
           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
              {!wallet.isConnected ? (
-                <div className={`flex flex-col items-center justify-center py-24 rounded-3xl border text-center px-4 transition-colors ${settings.theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200 shadow-xl'}`}>
-                    <div className={`p-5 rounded-full mb-6 ring-4 ${settings.theme === 'dark' ? 'bg-zinc-800 ring-zinc-900' : 'bg-zinc-100 ring-zinc-50'}`}><Landmark size={40} className="text-zinc-500" /></div>
-                    <h3 className="text-2xl font-bold mb-3">Connect Wallet to Access Vault</h3>
-                    <div className="scale-110"><WalletButton walletState={wallet} onConnect={connectWallet} onDisconnect={disconnectWallet} /></div>
+                <div className={`flex flex-col items-center justify-center py-16 md:py-24 rounded-3xl border text-center px-6 transition-colors ${settings.theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200 shadow-xl'}`}>
+                    <div className={`p-4 md:p-5 rounded-full mb-6 ring-4 ${settings.theme === 'dark' ? 'bg-zinc-800 ring-zinc-900' : 'bg-zinc-100 ring-zinc-50'}`}><Landmark size={32} className="text-zinc-500 md:w-10 md:h-10" /></div>
+                    <h3 className="text-xl md:text-2xl font-bold mb-4">Connect Wallet to Access Vault</h3>
+                    <div className="scale-100 md:scale-110"><WalletButton walletState={wallet} onConnect={connectWallet} onDisconnect={disconnectWallet} /></div>
                 </div>
              ) : (
                 <VaultDashboard walletState={wallet} vaultState={vault} onUpdateVault={setVault} onUpdateWallet={updateBalance} />
@@ -233,18 +222,18 @@ export default function App() {
         )}
 
         {view === 'CHAT' && activeChatRoute && (
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto h-full">
              <RouteChat route={activeChatRoute} walletState={wallet} onClose={() => setView(UserRole.PASSENGER)} />
           </div>
         )}
       </main>
 
-      <footer className={`border-t mt-auto py-8 transition-colors ${settings.theme === 'dark' ? 'border-zinc-900' : 'border-zinc-200'}`}>
+      <footer className={`border-t mt-auto py-6 md:py-8 transition-colors ${settings.theme === 'dark' ? 'border-zinc-900' : 'border-zinc-200'}`}>
           <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-zinc-500">
               <div className="flex items-center gap-2">
                  <span className={`font-bold ${settings.theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>TRANSIT ARC</span>
-                 <span className="text-zinc-700">|</span>
-                 <p>&copy; 2025 Built on Arc Network.</p>
+                 <span className="text-zinc-700 hidden sm:inline">|</span>
+                 <p className="text-center md:text-left">&copy; 2025 Built on Arc Network.</p>
               </div>
           </div>
       </footer>
