@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { TransitRoute, AnalyticsData, ChatMessage } from "../types.ts";
 
@@ -32,6 +33,40 @@ export const DEFAULT_ROUTES: TransitRoute[] = [
   { id: 'def-7', name: 'Trans-Alpine Rail', origin: 'Mountain Base', destination: 'Summit Peak', price: 25.00, schedule: 'Hourly', type: 'TRAIN', imageUrl: 'https://images.unsplash.com/photo-1474487059207-de619b0616f7?auto=format&fit=crop&q=80&w=800' },
   { id: 'def-8', name: 'Harbor Cruiser', origin: 'West Marina', destination: 'Fishermans Wharf', price: 6.00, schedule: 'Every 20 mins', type: 'FERRY', imageUrl: 'https://images.unsplash.com/photo-1511316695145-4992006ffddb?auto=format&fit=crop&q=80&w=800' },
 ];
+
+export interface RealWorldTransitResponse {
+  text: string;
+  groundingChunks: any[];
+}
+
+/**
+ * Fetches real transit data using Google Maps grounding.
+ */
+export const fetchRealWorldRoutes = async (location: string, coords?: { lat: number, lng: number }): Promise<RealWorldTransitResponse> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-lite-latest',
+      contents: `Find real-time public transit routes in ${location}. List specific bus, train, or metro lines available now. Provide their destination and any available links to official schedules.`,
+      config: {
+        tools: [{ googleMaps: {} }],
+        toolConfig: {
+          retrievalConfig: {
+            latLng: coords ? { latitude: coords.lat, longitude: coords.lng } : undefined
+          }
+        }
+      }
+    });
+
+    return {
+      text: response.text || "No real-time data found for this location.",
+      groundingChunks: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
+    };
+  } catch (error) {
+    console.error("TransitArc: Real-world fetch failed:", error);
+    throw error;
+  }
+};
 
 export const generateRoutes = async (city: string): Promise<TransitRoute[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -77,9 +112,6 @@ export const generateRoutes = async (city: string): Promise<TransitRoute[]> => {
   }
 };
 
-/**
- * Analyzes an image to extract a location or city name
- */
 export const analyzeLocationFromImage = async (base64Image: string): Promise<string | null> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
@@ -99,9 +131,6 @@ export const analyzeLocationFromImage = async (base64Image: string): Promise<str
   }
 };
 
-/**
- * General Chat Assistant using Gemini 3 Pro
- */
 export const getChatAssistantResponse = async (prompt: string, imageBase64?: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {

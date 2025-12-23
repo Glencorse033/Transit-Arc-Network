@@ -1,11 +1,12 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { generateRoutes, analyzeLocationFromImage, DEFAULT_ROUTES } from '../services/geminiService.ts';
+import { generateRoutes, analyzeLocationFromImage, DEFAULT_ROUTES, fetchRealWorldRoutes, RealWorldTransitResponse } from '../services/geminiService.ts';
 import { TransitRoute, Ticket, PaymentLink, WalletState } from '../types.ts';
 import { TicketCard } from './TicketCard.tsx';
 import { 
   MapPin, Bus, Train, Ship, Share2, ArrowRight, Wallet, 
   Check, Copy, Clock, Loader2, ArrowLeft, Search, 
-  MessageSquare, Users, Sparkles, Map as MapIcon, AlertCircle, RefreshCw, Camera, X, ImageOff
+  MessageSquare, Users, Sparkles, Map as MapIcon, AlertCircle, RefreshCw, Camera, X, ImageOff, Globe, ExternalLink
 } from 'lucide-react';
 
 interface Props {
@@ -17,8 +18,10 @@ interface Props {
 
 export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWallet, onCreateLink, onJoinChat }) => {
   const [routes, setRoutes] = useState<TransitRoute[]>(DEFAULT_ROUTES);
+  const [realWorldData, setRealWorldData] = useState<RealWorldTransitResponse | null>(null);
   const [loadingRoutes, setLoadingRoutes] = useState(false);
   const [analyzingImage, setAnalyzingImage] = useState(false);
+  const [isLiveMode, setIsLiveMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [city, setCity] = useState("");
   const [selectedRoute, setSelectedRoute] = useState<TransitRoute | null>(null);
@@ -30,17 +33,28 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchRoutes = async (cityName: string) => {
-    if (!cityName.trim()) return;
+    if (!cityName.trim() && !isLiveMode) return;
     setLoadingRoutes(true);
     setError(null);
+    setRealWorldData(null);
+
     try {
-      const result = await generateRoutes(cityName);
-      if (result.length === 0) {
-        setError("No routes found or API error. Check browser console.");
+      if (isLiveMode) {
+        // Use Real-world Maps Grounding
+        const pos = await new Promise<GeolocationPosition>((res, rej) => {
+          navigator.geolocation.getCurrentPosition(res, rej);
+        }).catch(() => null);
+
+        const result = await fetchRealWorldRoutes(cityName || "nearby", pos ? { lat: pos.coords.latitude, lng: pos.coords.longitude } : undefined);
+        setRealWorldData(result);
+      } else {
+        // Use Simulated AI Route Generation
+        const result = await generateRoutes(cityName);
+        if (result.length === 0) setError("No routes found.");
+        setRoutes(result);
       }
-      setRoutes(result);
     } catch (err) {
-      setError("Failed to fetch transit data. Please try again.");
+      setError("Failed to fetch data. Please ensure location services are enabled.");
     } finally {
       setLoadingRoutes(false);
     }
@@ -63,13 +77,13 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
           setCity(detectedCity);
           fetchRoutes(detectedCity);
         } else {
-          setError("Could not identify the location. Please type it in.");
+          setError("Could not identify the location.");
         }
       } catch (err) {
-        setError("Could not analyze image. Please enter location manually.");
+        setError("Could not analyze image.");
       } finally {
         setAnalyzingImage(false);
-        setTimeout(() => setImagePreview(null), 3000); // Hide preview after a bit
+        setTimeout(() => setImagePreview(null), 3000);
       }
     };
     reader.readAsDataURL(file);
@@ -113,6 +127,24 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
 
   return (
     <div className="space-y-8 md:space-y-12">
+      {/* Mode Switcher */}
+      <div className="flex justify-center mb-4">
+        <div className="bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl flex gap-1 border border-zinc-200 dark:border-zinc-800">
+          <button 
+            onClick={() => { setIsLiveMode(false); setRealWorldData(null); }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${!isLiveMode ? 'bg-white dark:bg-zinc-800 shadow-sm text-indigo-500' : 'text-zinc-500 hover:text-zinc-700'}`}
+          >
+            <Sparkles size={14} /> Discovery
+          </button>
+          <button 
+            onClick={() => { setIsLiveMode(true); }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${isLiveMode ? 'bg-white dark:bg-zinc-800 shadow-sm text-emerald-500' : 'text-zinc-500 hover:text-zinc-700'}`}
+          >
+            <Globe size={14} /> Live Network
+          </button>
+        </div>
+      </div>
+
       {/* City Search Bar with Vision */}
       {!selectedRoute && (
         <div className="relative w-full max-w-xl mx-auto">
@@ -124,7 +156,7 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
               value={city} 
               onChange={(e) => setCity(e.target.value)} 
               className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl pl-11 pr-32 py-3.5 md:py-4 text-sm md:text-lg font-medium shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-              placeholder="Search city, station or landmark..."
+              placeholder={isLiveMode ? "Search city or stay empty for nearby..." : "Search city, station or landmark..."}
               onKeyDown={(e) => e.key === 'Enter' && fetchRoutes(city)}
             />
             <div className="absolute right-1.5 inset-y-1.5 flex items-center gap-1.5">
@@ -138,8 +170,8 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
               </button>
               <button 
                 onClick={() => fetchRoutes(city)} 
-                disabled={loadingRoutes || !city.trim()}
-                className="bg-zinc-900 dark:bg-white text-white dark:text-black px-4 md:px-6 py-2 rounded-xl text-xs md:text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+                disabled={loadingRoutes}
+                className={`${isLiveMode ? 'bg-emerald-500' : 'bg-zinc-900 dark:bg-white text-white dark:text-black'} px-4 md:px-6 py-2 rounded-xl text-xs md:text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50`}
               >
                 {loadingRoutes ? <Loader2 size={16} className="animate-spin" /> : 'Search'}
               </button>
@@ -147,7 +179,6 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
           </div>
 
-          {/* Vision Processing Overlay */}
           {imagePreview && (
             <div className="absolute -bottom-24 left-1/2 -translate-x-1/2 w-32 h-20 rounded-xl overflow-hidden border-2 border-indigo-500 shadow-2xl z-20 animate-in zoom-in-90 fade-in">
               <img src={imagePreview} className="w-full h-full object-cover blur-[1px]" />
@@ -155,12 +186,9 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
                  {analyzingImage ? (
                    <div className="relative w-full h-full">
                       <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 animate-[scan_2s_ease-in-out_infinite] shadow-[0_0_10px_#6366f1]" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Sparkles size={20} className="text-white animate-pulse" />
-                      </div>
                    </div>
                  ) : (
-                   <Check size={20} className="text-emerald-400 drop-shadow-lg" />
+                   <Check size={20} className="text-emerald-400" />
                  )}
               </div>
             </div>
@@ -168,7 +196,6 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
         </div>
       )}
 
-      {/* CSS for scanning animation */}
       <style>{`
         @keyframes scan {
           0%, 100% { transform: translateY(0); }
@@ -180,43 +207,58 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
         <div className="space-y-6 md:space-y-8">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
-              <MapIcon size={18} className="text-indigo-500" />
-              {analyzingImage ? 'Analyzing location...' : city ? `Routes in ${city}` : 'Available Transit Network'}
+              {isLiveMode ? <Globe size={18} className="text-emerald-500" /> : <MapIcon size={18} className="text-indigo-500" />}
+              {isLiveMode ? "Live Transit Discovery" : city ? `Routes in ${city}` : 'Available Transit Network'}
             </h2>
             <div className="text-[10px] md:text-xs font-mono text-zinc-500 bg-zinc-100 dark:bg-zinc-900 px-2 md:px-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-800">
-              {routes.length} ROUTES
+              {loadingRoutes ? "SEARCHING..." : isLiveMode ? "LIVE DATA" : `${routes.length} ROUTES`}
             </div>
           </div>
 
           {loadingRoutes ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+              {[1, 2, 3, 4].map(i => (
                 <div key={i} className="h-56 md:h-64 rounded-3xl bg-zinc-100 dark:bg-zinc-900 animate-pulse border border-zinc-200 dark:border-zinc-800" />
               ))}
             </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center py-16 bg-red-500/5 border border-red-500/20 rounded-3xl text-center px-6">
-               <AlertCircle size={32} className="text-red-500 mb-4" />
-               <h3 className="text-lg font-bold mb-2">Oops! Something went wrong</h3>
-               <p className="text-sm text-zinc-500 max-w-xs mb-6">{error}</p>
-               <button 
-                onClick={() => city ? fetchRoutes(city) : setRoutes(DEFAULT_ROUTES)}
-                className="flex items-center gap-2 px-6 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-xl font-bold text-sm"
-               >
-                 <RefreshCw size={16} />
-                 Try Again
-               </button>
-            </div>
-          ) : routes.length === 0 ? (
-            <div className="text-center py-20 opacity-50">
-               <MapIcon size={48} className="mx-auto mb-4" />
-               <p>No routes available in this location.</p>
+          ) : isLiveMode && realWorldData ? (
+            <div className="bg-white dark:bg-zinc-950 p-6 md:p-8 rounded-[2.5rem] border border-emerald-500/20 shadow-xl animate-in fade-in slide-in-from-bottom-4">
+               <div className="mb-6">
+                 <div className="flex items-center gap-2 text-emerald-500 mb-2">
+                   <Globe size={16} />
+                   <span className="text-[10px] font-bold uppercase tracking-widest">Grounded Real-Time Data</span>
+                 </div>
+                 <div className="prose prose-sm dark:prose-invert max-w-none text-zinc-600 dark:text-zinc-300 whitespace-pre-line">
+                   {realWorldData.text}
+                 </div>
+               </div>
+               
+               {realWorldData.groundingChunks.length > 0 && (
+                 <div className="pt-6 border-t border-zinc-100 dark:border-zinc-900">
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4">Official Sources & Schedules</p>
+                    <div className="flex flex-wrap gap-2">
+                       {realWorldData.groundingChunks.map((chunk, i) => (
+                         chunk.maps?.uri && (
+                           <a 
+                             key={i} 
+                             href={chunk.maps.uri} 
+                             target="_blank" 
+                             rel="noopener noreferrer"
+                             className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900 hover:bg-emerald-500 hover:text-white border border-zinc-200 dark:border-zinc-800 px-4 py-2 rounded-xl text-xs font-bold transition-all"
+                           >
+                             <ExternalLink size={14} />
+                             {chunk.maps.title || "View Schedule"}
+                           </a>
+                         )
+                       ))}
+                    </div>
+                 </div>
+               )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
               {routes.map(r => (
                 <div key={r.id} className="group relative bg-white dark:bg-zinc-950 rounded-2xl md:rounded-3xl border border-zinc-200 dark:border-zinc-800 overflow-hidden hover:border-indigo-500/50 transition-all duration-300 shadow-sm hover:shadow-xl">
-                  {/* Destination Image Background */}
                   <div className="h-40 md:h-44 w-full relative overflow-hidden bg-zinc-200 dark:bg-zinc-900">
                     {!brokenImages[r.id] ? (
                       <img 
@@ -226,48 +268,33 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
                         onError={() => handleImageError(r.id)}
                       />
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-900 dark:to-zinc-800 text-zinc-400 dark:text-zinc-600">
-                        <ImageOff size={32} strokeWidth={1.5} />
-                        <span className="text-[10px] font-bold mt-2 tracking-widest uppercase">No Preview</span>
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-200 dark:bg-zinc-900 text-zinc-400">
+                        <ImageOff size={32} />
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                    
-                    {/* Floating Badges */}
-                    <div className="absolute top-3 left-3 flex gap-2">
-                      <div className="bg-white/10 backdrop-blur-md text-white px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 border border-white/10">
+                    <div className="absolute top-3 left-3">
+                      <div className="bg-white/10 backdrop-blur-md text-white px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 border border-white/10">
                         {getTransportIcon(r.type)}
                         {r.type}
                       </div>
                     </div>
-                    
                     <div className="absolute bottom-3 left-3 right-3">
-                      <p className="text-zinc-300 text-[9px] md:text-[10px] uppercase tracking-widest font-bold truncate">{r.origin} → {r.destination}</p>
-                      <h3 className="text-lg md:text-xl font-bold text-white tracking-tight leading-none mb-1">{r.name}</h3>
+                      <p className="text-zinc-300 text-[10px] uppercase font-bold truncate">{r.origin} → {r.destination}</p>
+                      <h3 className="text-lg font-bold text-white leading-tight">{r.name}</h3>
                     </div>
                   </div>
-
-                  <div className="p-4 md:p-5 flex items-center justify-between bg-white dark:bg-zinc-900/50">
-                    <div className="flex flex-col">
-                       <span className="text-xl md:text-2xl font-black text-indigo-500">{r.price}<span className="text-[10px] ml-1 font-bold text-zinc-500">USDC</span></span>
-                       <span className="text-[9px] md:text-[10px] text-zinc-500 font-medium">{r.schedule}</span>
+                  <div className="p-4 flex items-center justify-between">
+                    <div>
+                      <span className="text-xl font-black text-indigo-500">{r.price}<span className="text-[10px] ml-1 text-zinc-500">USDC</span></span>
+                      <p className="text-[10px] text-zinc-500">{r.schedule}</p>
                     </div>
-                    
-                    <div className="flex gap-1.5 md:gap-2">
-                      <button 
-                        onClick={() => onJoinChat(r)}
-                        className="p-2.5 md:p-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-indigo-500 hover:bg-indigo-500/10 transition-all relative"
-                        title="Community Chat"
-                      >
+                    <div className="flex gap-1.5">
+                      <button onClick={() => onJoinChat(r)} className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-indigo-500 transition-all">
                         <MessageSquare size={16} />
-                        <span className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-emerald-500 rounded-full border border-white dark:border-zinc-900" />
                       </button>
-                      <button 
-                        onClick={() => setSelectedRoute(r)} 
-                        className="flex items-center gap-1 md:gap-2 bg-zinc-900 dark:bg-white text-white dark:text-black px-4 md:px-6 py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-bold hover:scale-[1.02] active:scale-95 transition-all shadow-md"
-                      >
+                      <button onClick={() => setSelectedRoute(r)} className="bg-zinc-900 dark:bg-white text-white dark:text-black px-4 py-2.5 rounded-xl text-xs font-bold hover:scale-[1.02] transition-all">
                         Book
-                        <ArrowRight size={14} />
                       </button>
                     </div>
                   </div>
@@ -278,91 +305,22 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
         </div>
       ) : (
         <div className="max-w-xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 px-1">
-          <div className="bg-white dark:bg-zinc-900 p-5 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden relative">
+          <div className="bg-white dark:bg-zinc-900 p-5 md:p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden relative">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-500" />
-            
-            <button 
-              onClick={() => setSelectedRoute(null)} 
-              className="mb-6 md:mb-8 flex items-center gap-2 text-xs md:text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors"
-            >
-              <ArrowLeft size={14} /> 
-              Back
+            <button onClick={() => setSelectedRoute(null)} className="mb-6 flex items-center gap-2 text-xs text-zinc-500">
+              <ArrowLeft size={14} /> Back
             </button>
-
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6 md:mb-8">
-              <div>
-                <span className="text-[9px] md:text-[10px] font-bold text-indigo-500 uppercase tracking-widest bg-indigo-500/10 px-2.5 py-1 rounded-full mb-2 md:mb-3 inline-block">Confirm Booking</span>
-                <h3 className="text-2xl md:text-3xl font-bold tracking-tight leading-tight">{selectedRoute.name}</h3>
-                <p className="text-zinc-500 mt-1 flex items-center gap-1.5 text-xs">
-                   <MapPin size={12} /> {selectedRoute.origin} to {selectedRoute.destination}
-                </p>
-              </div>
-              <div className="sm:text-right">
-                <p className="text-2xl md:text-3xl font-black">{selectedRoute.price} <span className="text-[10px] md:text-sm font-medium text-zinc-500 uppercase tracking-tighter">USDC</span></p>
-                <p className="text-[10px] text-zinc-500 font-mono">EST_FEE: 0.00 ARC</p>
-              </div>
+            <div className="mb-8">
+              <h3 className="text-2xl md:text-3xl font-bold">{selectedRoute.name}</h3>
+              <p className="text-zinc-500 text-sm">{selectedRoute.origin} to {selectedRoute.destination}</p>
             </div>
-
-            <div className="space-y-4 md:space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 ml-1">Passenger Name</label>
-                <input 
-                  value={passengerName} 
-                  onChange={(e) => setPassengerName(e.target.value)} 
-                  placeholder="Enter legal name..." 
-                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl md:rounded-2xl p-3.5 md:p-4 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-shadow" 
-                />
-              </div>
-
-              <div className="p-3.5 md:p-4 rounded-xl md:rounded-2xl bg-indigo-50 dark:bg-indigo-500/5 border border-indigo-100 dark:border-indigo-500/10">
-                <div className="flex items-start gap-3 text-indigo-600 dark:text-indigo-400">
-                   <Sparkles size={16} className="flex-shrink-0 mt-0.5" />
-                   <p className="text-[11px] md:text-xs font-medium leading-relaxed">Ticket minted as a dynamic NFT on Arc Network. Valid for 2 hours.</p>
-                </div>
-              </div>
-
-              <button 
-                onClick={handlePaySelf} 
-                disabled={processing || !walletState.isConnected} 
-                className={`w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-bold text-base md:text-lg transition-all flex items-center justify-center gap-3 ${
-                  !walletState.isConnected 
-                  ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed' 
-                  : 'bg-zinc-900 dark:bg-white text-white dark:text-black hover:scale-[0.98] active:scale-95 shadow-lg'
-                }`}
-              >
-                {processing ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    MINTING...
-                  </>
-                ) : (
-                  <>
-                    <Check size={18} />
-                    {walletState.isConnected ? `Pay ${selectedRoute.price} USDC` : 'Connect Wallet'}
-                  </>
-                )}
+            <div className="space-y-4">
+              <input value={passengerName} onChange={(e) => setPassengerName(e.target.value)} placeholder="Passenger Name" className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 text-sm outline-none" />
+              <button onClick={handlePaySelf} disabled={processing || !walletState.isConnected} className="w-full py-4 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-black font-bold flex items-center justify-center gap-2 shadow-lg">
+                {processing ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                {walletState.isConnected ? `Pay ${selectedRoute.price} USDC` : 'Connect Wallet'}
               </button>
-              
-              {!walletState.isConnected && (
-                <p className="text-center text-[9px] md:text-[10px] text-zinc-500 font-medium uppercase tracking-widest">Authorize via wallet provider</p>
-              )}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Purchased Tickets Section */}
-      {tickets.length > 0 && (
-        <div className="pt-8 md:pt-12 border-t border-zinc-200 dark:border-zinc-900">
-          <div className="flex items-center justify-between mb-6 md:mb-8 px-1">
-            <h2 className="text-xl md:text-2xl font-bold">Active Tickets</h2>
-            <div className="flex items-center gap-1.5 text-emerald-500 text-[10px] md:text-xs font-bold bg-emerald-500/10 px-2.5 py-1 rounded-full">
-               <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
-               LIVE_ARC
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
-            {tickets.map(t => <TicketCard key={t.id} ticket={t} />)}
           </div>
         </div>
       )}
