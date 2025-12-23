@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Ticket } from '../types';
-import { CheckCircle2, Clock, MapPin, AlertTriangle, Ban, Copy, Check } from 'lucide-react';
+import { CheckCircle2, Clock, MapPin, AlertTriangle, Ban, Copy, Check, ImageOff } from 'lucide-react';
 
 interface Props {
   ticket: Ticket;
@@ -9,6 +9,7 @@ interface Props {
 
 export const TicketCard: React.FC<Props> = ({ ticket }) => {
   const [copied, setCopied] = useState(false);
+  const [isImageBroken, setIsImageBroken] = useState(false);
   const isExpired = new Date(ticket.expiryDate).getTime() < Date.now();
   
   const handleCopyHash = (e: React.MouseEvent) => {
@@ -26,14 +27,19 @@ export const TicketCard: React.FC<Props> = ({ ticket }) => {
     }`}>
       {/* Header Image */}
       <div className="h-28 w-full relative bg-zinc-100 dark:bg-black overflow-hidden">
-        {ticket.imageUrl && (
+        {ticket.imageUrl && !isImageBroken ? (
             <img 
               src={ticket.imageUrl} 
               className={`w-full h-full object-cover transition-transform duration-700 ${
                 isExpired ? 'opacity-30' : 'opacity-80 dark:opacity-60 group-hover:scale-105'
               }`} 
               alt="Destination" 
+              onError={() => setIsImageBroken(true)}
             />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-zinc-200 dark:bg-zinc-950 text-zinc-400 dark:text-zinc-600">
+             <ImageOff size={24} strokeWidth={1} />
+          </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-white dark:from-zinc-900 to-transparent" />
         <div className={`absolute top-0 left-0 w-full h-1 ${isExpired ? 'bg-zinc-500' : 'bg-emerald-500 shadow-[0_0_10px_#10b981]'}`} />

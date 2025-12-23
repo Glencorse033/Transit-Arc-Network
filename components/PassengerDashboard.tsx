@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { generateRoutes, analyzeLocationFromImage } from '../services/geminiService.ts';
+import { generateRoutes, analyzeLocationFromImage, DEFAULT_ROUTES } from '../services/geminiService.ts';
 import { TransitRoute, Ticket, PaymentLink, WalletState } from '../types.ts';
 import { TicketCard } from './TicketCard.tsx';
 import { 
   MapPin, Bus, Train, Ship, Share2, ArrowRight, Wallet, 
   Check, Copy, Clock, Loader2, ArrowLeft, Search, 
-  MessageSquare, Users, Sparkles, Map as MapIcon, AlertCircle, RefreshCw, Camera, X
+  MessageSquare, Users, Sparkles, Map as MapIcon, AlertCircle, RefreshCw, Camera, X, ImageOff
 } from 'lucide-react';
 
 interface Props {
@@ -16,21 +16,21 @@ interface Props {
 }
 
 export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWallet, onCreateLink, onJoinChat }) => {
-  const [routes, setRoutes] = useState<TransitRoute[]>([]);
+  const [routes, setRoutes] = useState<TransitRoute[]>(DEFAULT_ROUTES);
   const [loadingRoutes, setLoadingRoutes] = useState(false);
   const [analyzingImage, setAnalyzingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [city, setCity] = useState("San Francisco");
+  const [city, setCity] = useState("");
   const [selectedRoute, setSelectedRoute] = useState<TransitRoute | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [passengerName, setPassengerName] = useState("");
   const [processing, setProcessing] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { fetchRoutes(city); }, []);
-
   const fetchRoutes = async (cityName: string) => {
+    if (!cityName.trim()) return;
     setLoadingRoutes(true);
     setError(null);
     try {
@@ -62,6 +62,8 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
         if (detectedCity) {
           setCity(detectedCity);
           fetchRoutes(detectedCity);
+        } else {
+          setError("Could not identify the location. Please type it in.");
         }
       } catch (err) {
         setError("Could not analyze image. Please enter location manually.");
@@ -105,6 +107,10 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
     }
   };
 
+  const handleImageError = (id: string) => {
+    setBrokenImages(prev => ({ ...prev, [id]: true }));
+  };
+
   return (
     <div className="space-y-8 md:space-y-12">
       {/* City Search Bar with Vision */}
@@ -118,7 +124,7 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
               value={city} 
               onChange={(e) => setCity(e.target.value)} 
               className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl pl-11 pr-32 py-3.5 md:py-4 text-sm md:text-lg font-medium shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-              placeholder="Search city or landmark..."
+              placeholder="Search city, station or landmark..."
               onKeyDown={(e) => e.key === 'Enter' && fetchRoutes(city)}
             />
             <div className="absolute right-1.5 inset-y-1.5 flex items-center gap-1.5">
@@ -132,7 +138,7 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
               </button>
               <button 
                 onClick={() => fetchRoutes(city)} 
-                disabled={loadingRoutes}
+                disabled={loadingRoutes || !city.trim()}
                 className="bg-zinc-900 dark:bg-white text-white dark:text-black px-4 md:px-6 py-2 rounded-xl text-xs md:text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {loadingRoutes ? <Loader2 size={16} className="animate-spin" /> : 'Search'}
@@ -175,16 +181,16 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
           <div className="flex items-center justify-between px-1">
             <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
               <MapIcon size={18} className="text-indigo-500" />
-              {analyzingImage ? 'Analyzing location...' : `Routes in ${city}`}
+              {analyzingImage ? 'Analyzing location...' : city ? `Routes in ${city}` : 'Available Transit Network'}
             </h2>
             <div className="text-[10px] md:text-xs font-mono text-zinc-500 bg-zinc-100 dark:bg-zinc-900 px-2 md:px-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-800">
-              {routes.length} LOADED
+              {routes.length} ROUTES
             </div>
           </div>
 
           {loadingRoutes ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              {[1, 2, 3, 4].map(i => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                 <div key={i} className="h-56 md:h-64 rounded-3xl bg-zinc-100 dark:bg-zinc-900 animate-pulse border border-zinc-200 dark:border-zinc-800" />
               ))}
             </div>
@@ -194,7 +200,7 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
                <h3 className="text-lg font-bold mb-2">Oops! Something went wrong</h3>
                <p className="text-sm text-zinc-500 max-w-xs mb-6">{error}</p>
                <button 
-                onClick={() => fetchRoutes(city)}
+                onClick={() => city ? fetchRoutes(city) : setRoutes(DEFAULT_ROUTES)}
                 className="flex items-center gap-2 px-6 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-xl font-bold text-sm"
                >
                  <RefreshCw size={16} />
@@ -207,12 +213,24 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
                <p>No routes available in this location.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
               {routes.map(r => (
                 <div key={r.id} className="group relative bg-white dark:bg-zinc-950 rounded-2xl md:rounded-3xl border border-zinc-200 dark:border-zinc-800 overflow-hidden hover:border-indigo-500/50 transition-all duration-300 shadow-sm hover:shadow-xl">
                   {/* Destination Image Background */}
-                  <div className="h-40 md:h-44 w-full relative overflow-hidden">
-                    <img src={r.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={r.destination} />
+                  <div className="h-40 md:h-44 w-full relative overflow-hidden bg-zinc-200 dark:bg-zinc-900">
+                    {!brokenImages[r.id] ? (
+                      <img 
+                        src={r.imageUrl} 
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                        alt={r.destination} 
+                        onError={() => handleImageError(r.id)}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-900 dark:to-zinc-800 text-zinc-400 dark:text-zinc-600">
+                        <ImageOff size={32} strokeWidth={1.5} />
+                        <span className="text-[10px] font-bold mt-2 tracking-widest uppercase">No Preview</span>
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                     
                     {/* Floating Badges */}
@@ -225,7 +243,7 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
                     
                     <div className="absolute bottom-3 left-3 right-3">
                       <p className="text-zinc-300 text-[9px] md:text-[10px] uppercase tracking-widest font-bold truncate">{r.origin} → {r.destination}</p>
-                      <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">{r.name}</h3>
+                      <h3 className="text-lg md:text-xl font-bold text-white tracking-tight leading-none mb-1">{r.name}</h3>
                     </div>
                   </div>
 
@@ -343,7 +361,7 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
                LIVE_ARC
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
             {tickets.map(t => <TicketCard key={t.id} ticket={t} />)}
           </div>
         </div>

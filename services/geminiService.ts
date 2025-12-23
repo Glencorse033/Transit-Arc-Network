@@ -13,21 +13,32 @@ const parseAIJson = (text: string) => {
 
 const getDestinationImage = (type: string): string => {
   const images: Record<string, string> = {
-    'URBAN': 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&q=80',
-    'NATURE': 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&q=80',
-    'COASTAL': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80',
-    'AIRPORT': 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800&q=80',
-    'SUBURBAN': 'https://images.unsplash.com/photo-1580674285054-bed31e145f59?w=800&q=80',
+    'URBAN': 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&q=80&w=800',
+    'NATURE': 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=800',
+    'COASTAL': 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?auto=format&fit=crop&q=80&w=800',
+    'AIRPORT': 'https://images.unsplash.com/photo-1530521954074-e64f6810b32d?auto=format&fit=crop&q=80&w=800',
+    'SUBURBAN': 'https://images.unsplash.com/photo-1510253687831-0f982d7862fc?auto=format&fit=crop&q=80&w=800',
   };
   return images[type] || images['URBAN'];
 };
+
+export const DEFAULT_ROUTES: TransitRoute[] = [
+  { id: 'def-1', name: 'Global Express Metro', origin: 'Central Hub', destination: 'Financial District', price: 2.50, schedule: 'Every 5 mins', type: 'METRO', imageUrl: 'https://images.unsplash.com/photo-1447433589675-4aaa569f3e05?auto=format&fit=crop&q=80&w=800' },
+  { id: 'def-2', name: 'Coastal Ferry', origin: 'North Pier', destination: 'Island Sanctuary', price: 12.00, schedule: 'Every 60 mins', type: 'FERRY', imageUrl: 'https://images.unsplash.com/photo-1534491336415-410a98f51947?auto=format&fit=crop&q=80&w=800' },
+  { id: 'def-3', name: 'Hyperlink Train', origin: 'East Terminal', destination: 'West Coast Loop', price: 15.00, schedule: 'Every 30 mins', type: 'TRAIN', imageUrl: 'https://images.unsplash.com/photo-1532105956626-9569c03602f6?auto=format&fit=crop&q=80&w=800' },
+  { id: 'def-4', name: 'City Loop Bus', origin: 'Old Town', destination: 'Arts Quarter', price: 1.50, schedule: 'Every 12 mins', type: 'BUS', imageUrl: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&q=80&w=800' },
+  { id: 'def-5', name: 'Airport Shuttle', origin: 'Skyport Center', destination: 'Downtown Transit Hub', price: 8.50, schedule: 'Every 15 mins', type: 'BUS', imageUrl: 'https://images.unsplash.com/photo-1530521954074-e64f6810b32d?auto=format&fit=crop&q=80&w=800' },
+  { id: 'def-6', name: 'Sky-Line Monorail', origin: 'University Heights', destination: 'Tech Valley', price: 4.00, schedule: 'Every 8 mins', type: 'METRO', imageUrl: 'https://images.unsplash.com/photo-1519010470956-6d877008eaa4?auto=format&fit=crop&q=80&w=800' },
+  { id: 'def-7', name: 'Trans-Alpine Rail', origin: 'Mountain Base', destination: 'Summit Peak', price: 25.00, schedule: 'Hourly', type: 'TRAIN', imageUrl: 'https://images.unsplash.com/photo-1474487059207-de619b0616f7?auto=format&fit=crop&q=80&w=800' },
+  { id: 'def-8', name: 'Harbor Cruiser', origin: 'West Marina', destination: 'Fishermans Wharf', price: 6.00, schedule: 'Every 20 mins', type: 'FERRY', imageUrl: 'https://images.unsplash.com/photo-1511316695145-4992006ffddb?auto=format&fit=crop&q=80&w=800' },
+];
 
 export const generateRoutes = async (city: string): Promise<TransitRoute[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Generate 5 realistic and varied public transit routes for ${city}. Include a mix of Bus, Metro, and Train. Each route should have a unique name, price (between 2-15 USDC), and schedule. Return JSON only.`,
+      contents: `Generate 8 realistic and varied public transit routes for ${city}. Include a mix of Bus, Metro, and Train. Each route should have a unique name, price (between 2-15 USDC), and schedule. Return JSON only.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -77,11 +88,11 @@ export const analyzeLocationFromImage = async (base64Image: string): Promise<str
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: "image/jpeg" } },
-          { text: "Identify the city or specific location/landmark in this image. Return ONLY the city or location name as a single string. If unsure, return 'San Francisco'." }
+          { text: "Identify the city or specific location/landmark in this image. Return ONLY the city or location name as a single string. If you cannot identify it, return 'Global'." }
         ]
       }
     });
-    return response.text?.trim() || "San Francisco";
+    return response.text?.trim() || null;
   } catch (error) {
     console.error("TransitArc: Image analysis failed:", error);
     return null;
