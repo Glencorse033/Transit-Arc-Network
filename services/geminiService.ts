@@ -1,15 +1,12 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { TransitRoute, AnalyticsData, ChatMessage } from "../types.ts";
 
-/**
- * Safely parse JSON from AI response
- */
 const parseAIJson = (text: string) => {
   try {
-    return JSON.parse(text.trim());
+    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleaned);
   } catch (e) {
-    console.error("AI JSON Parse Error:", e, "Original text snippet:", text.slice(0, 100));
+    console.error("TransitArc: AI JSON Parse Error:", e);
     return null;
   }
 };
@@ -26,18 +23,11 @@ const getDestinationImage = (type: string): string => {
 };
 
 export const generateRoutes = async (city: string): Promise<TransitRoute[]> => {
-  // Always obtain the API key exclusively from process.env.API_KEY
-  const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey.length < 5) {
-    console.error("TransitArc: Missing or invalid API_KEY environment variable.");
-    return [];
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Generate 5 realistic public transit routes for ${city}. Include a mix of Bus, Metro, and Train. Return JSON only.`,
+      contents: `Generate 5 realistic and varied public transit routes for ${city}. Include a mix of Bus, Metro, and Train. Each route should have a unique name, price (between 2-15 USDC), and schedule. Return JSON only.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -61,30 +51,70 @@ export const generateRoutes = async (city: string): Promise<TransitRoute[]> => {
     });
 
     const text = response.text;
-    if (!text) {
-      console.warn("TransitArc: Empty response from Gemini.");
-      return [];
-    }
+    if (!text) return [];
     
     const rawRoutes = parseAIJson(text);
-    if (!rawRoutes || !Array.isArray(rawRoutes)) {
-      console.warn("TransitArc: Failed to parse routes as array.");
-      return [];
-    }
+    if (!rawRoutes || !Array.isArray(rawRoutes)) return [];
     
     return rawRoutes.map((r: any) => ({
       ...r,
       imageUrl: getDestinationImage(r.destinationType)
     })) as TransitRoute[];
   } catch (error) {
-    console.error("TransitArc: Route Generation Error:", error);
+    console.error("TransitArc: Error in generateRoutes:", error);
     return [];
   }
 };
 
+/**
+ * Analyzes an image to extract a location or city name
+ */
+export const analyzeLocationFromImage = async (base64Image: string): Promise<string | null> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: {
+        parts: [
+          { inlineData: { data: base64Image, mimeType: "image/jpeg" } },
+          { text: "Identify the city or specific location/landmark in this image. Return ONLY the city or location name as a single string. If unsure, return 'San Francisco'." }
+        ]
+      }
+    });
+    return response.text?.trim() || "San Francisco";
+  } catch (error) {
+    console.error("TransitArc: Image analysis failed:", error);
+    return null;
+  }
+};
+
+/**
+ * General Chat Assistant using Gemini 3 Pro
+ */
+export const getChatAssistantResponse = async (prompt: string, imageBase64?: string): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  try {
+    const parts: any[] = [{ text: prompt }];
+    if (imageBase64) {
+      parts.unshift({ inlineData: { data: imageBase64, mimeType: "image/jpeg" } });
+    }
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: { parts },
+      config: {
+        systemInstruction: "You are the Transit Arc Assistant. You help users with public transport, Web3 payments in USDC, and identifying locations. Be concise, futuristic, and helpful."
+      }
+    });
+    return response.text || "I'm having trouble processing that right now.";
+  } catch (error) {
+    console.error("TransitArc: Chat error:", error);
+    return "The transit network is currently congested. Please try again.";
+  }
+};
+
 export const getChatCommuterMessage = async (route: TransitRoute, history: ChatMessage[]): Promise<ChatMessage> => {
-  // Always use process.env.API_KEY directly when initializing the client
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const chatContext = history.map(m => `${m.sender}: ${m.text}`).join('\n');
     const response = await ai.models.generateContent({
@@ -104,10 +134,8 @@ export const getChatCommuterMessage = async (route: TransitRoute, history: ChatM
     });
 
     const text = response.text;
-    if (!text) throw new Error("No response text");
-    
-    const data = parseAIJson(text);
-    if (!data) throw new Error("Invalid AI response format");
+    const data = parseAIJson(text || "");
+    if (!data) throw new Error("Invalid format");
 
     return {
       id: Math.random().toString(36).substr(2, 9),
@@ -118,14 +146,12 @@ export const getChatCommuterMessage = async (route: TransitRoute, history: ChatM
       isAi: true
     };
   } catch (e) {
-    console.error("Chat AI error:", e);
-    return { id: 'fallback', sender: 'Commuter_Anon', senderAddress: '0x123...456', text: 'On my way! Traffic seems light today.', timestamp: Date.now(), isAi: true };
+    return { id: 'fallback', sender: 'Commuter_Anon', senderAddress: '0x123...456', text: 'On my way!', timestamp: Date.now(), isAi: true };
   }
 };
 
 export const generateAnalytics = async (): Promise<AnalyticsData> => {
-  // Use gemini-3-pro-preview for complex reasoning tasks like analytics generation
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({ 
       model: "gemini-3-pro-preview", 
@@ -162,21 +188,16 @@ export const generateAnalytics = async (): Promise<AnalyticsData> => {
         }
       } 
     });
-    
     const text = response.text;
-    if (!text) throw new Error("No analytics data");
-    
-    const data = parseAIJson(text);
+    const data = parseAIJson(text || "");
     return data || { dailyRevenue: [], popularRoutes: [], totalRevenue: 0, activeRiders: 0 };
   } catch (error) {
-    console.error("Analytics Gen Error:", error);
     return { dailyRevenue: [], popularRoutes: [], totalRevenue: 0, activeRiders: 0 };
   }
 };
 
 export const generateVaultInsights = async (balance: number, points: number): Promise<string> => {
-  // Always use process.env.API_KEY directly when initializing the client
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({ 
       model: "gemini-3-flash-preview", 

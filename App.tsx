@@ -5,6 +5,7 @@ import { OperatorDashboard } from './components/OperatorDashboard.tsx';
 import { PaymentLinkView } from './components/PaymentLinkView.tsx';
 import { VaultDashboard } from './components/VaultDashboard.tsx';
 import { RouteChat } from './components/RouteChat.tsx';
+import { AIChatbot } from './components/AIChatbot.tsx';
 import { WalletState, UserRole, PaymentLink, VaultState, TransitRoute } from './types.ts';
 import { ShieldCheck, Menu, X, Landmark, Settings as SettingsIcon, Sun, Moon, Type, LayoutGrid, MessageSquare } from 'lucide-react';
 
@@ -186,7 +187,7 @@ export default function App() {
         )}
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-12 flex-1 w-full">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-12 flex-1 w-full relative">
         {view === UserRole.PASSENGER && (
           <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
              <div className="mb-8 md:mb-12 text-center px-2">
@@ -227,6 +228,8 @@ export default function App() {
           </div>
         )}
       </main>
+
+      <AIChatbot />
 
       <footer className={`border-t mt-auto py-6 md:py-8 transition-colors ${settings.theme === 'dark' ? 'border-zinc-900' : 'border-zinc-200'}`}>
           <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-zinc-500">

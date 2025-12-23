@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { generateRoutes } from '../services/geminiService.ts';
+import React, { useState, useEffect, useRef } from 'react';
+import { generateRoutes, analyzeLocationFromImage } from '../services/geminiService.ts';
 import { TransitRoute, Ticket, PaymentLink, WalletState } from '../types.ts';
 import { TicketCard } from './TicketCard.tsx';
 import { 
   MapPin, Bus, Train, Ship, Share2, ArrowRight, Wallet, 
   Check, Copy, Clock, Loader2, ArrowLeft, Search, 
-  MessageSquare, Users, Sparkles, Map as MapIcon, AlertCircle, RefreshCw
+  MessageSquare, Users, Sparkles, Map as MapIcon, AlertCircle, RefreshCw, Camera, X
 } from 'lucide-react';
 
 interface Props {
@@ -18,12 +18,15 @@ interface Props {
 export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWallet, onCreateLink, onJoinChat }) => {
   const [routes, setRoutes] = useState<TransitRoute[]>([]);
   const [loadingRoutes, setLoadingRoutes] = useState(false);
+  const [analyzingImage, setAnalyzingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [city, setCity] = useState("San Francisco");
   const [selectedRoute, setSelectedRoute] = useState<TransitRoute | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [passengerName, setPassengerName] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { fetchRoutes(city); }, []);
 
@@ -41,6 +44,33 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
     } finally {
       setLoadingRoutes(false);
     }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = (reader.result as string).split(',')[1];
+      setImagePreview(reader.result as string);
+      setAnalyzingImage(true);
+      setError(null);
+
+      try {
+        const detectedCity = await analyzeLocationFromImage(base64);
+        if (detectedCity) {
+          setCity(detectedCity);
+          fetchRoutes(detectedCity);
+        }
+      } catch (err) {
+        setError("Could not analyze image. Please enter location manually.");
+      } finally {
+        setAnalyzingImage(false);
+        setTimeout(() => setImagePreview(null), 3000); // Hide preview after a bit
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handlePaySelf = () => {
@@ -77,35 +107,75 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
 
   return (
     <div className="space-y-8 md:space-y-12">
-      {/* City Search Bar */}
+      {/* City Search Bar with Vision */}
       {!selectedRoute && (
-        <div className="relative group w-full max-w-xl mx-auto">
-          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-indigo-500 transition-colors">
-            <Search size={18} />
+        <div className="relative w-full max-w-xl mx-auto">
+          <div className="group relative">
+            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-indigo-500 transition-colors">
+              <Search size={18} />
+            </div>
+            <input 
+              value={city} 
+              onChange={(e) => setCity(e.target.value)} 
+              className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl pl-11 pr-32 py-3.5 md:py-4 text-sm md:text-lg font-medium shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+              placeholder="Search city or landmark..."
+              onKeyDown={(e) => e.key === 'Enter' && fetchRoutes(city)}
+            />
+            <div className="absolute right-1.5 inset-y-1.5 flex items-center gap-1.5">
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={analyzingImage}
+                className="p-2 rounded-xl text-zinc-400 hover:text-indigo-500 hover:bg-indigo-500/10 transition-all"
+                title="Scan with AI Vision"
+              >
+                {analyzingImage ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+              </button>
+              <button 
+                onClick={() => fetchRoutes(city)} 
+                disabled={loadingRoutes}
+                className="bg-zinc-900 dark:bg-white text-white dark:text-black px-4 md:px-6 py-2 rounded-xl text-xs md:text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {loadingRoutes ? <Loader2 size={16} className="animate-spin" /> : 'Search'}
+              </button>
+            </div>
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
           </div>
-          <input 
-            value={city} 
-            onChange={(e) => setCity(e.target.value)} 
-            className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl pl-11 pr-24 md:pr-32 py-3.5 md:py-4 text-sm md:text-lg font-medium shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-            placeholder="Search city..."
-            onKeyDown={(e) => e.key === 'Enter' && fetchRoutes(city)}
-          />
-          <button 
-            onClick={() => fetchRoutes(city)} 
-            disabled={loadingRoutes}
-            className="absolute right-1.5 inset-y-1.5 bg-zinc-900 dark:bg-white text-white dark:text-black px-4 md:px-6 rounded-xl text-xs md:text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            {loadingRoutes ? <Loader2 size={16} className="animate-spin" /> : 'Search'}
-          </button>
+
+          {/* Vision Processing Overlay */}
+          {imagePreview && (
+            <div className="absolute -bottom-24 left-1/2 -translate-x-1/2 w-32 h-20 rounded-xl overflow-hidden border-2 border-indigo-500 shadow-2xl z-20 animate-in zoom-in-90 fade-in">
+              <img src={imagePreview} className="w-full h-full object-cover blur-[1px]" />
+              <div className="absolute inset-0 bg-indigo-500/20 flex items-center justify-center">
+                 {analyzingImage ? (
+                   <div className="relative w-full h-full">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 animate-[scan_2s_ease-in-out_infinite] shadow-[0_0_10px_#6366f1]" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Sparkles size={20} className="text-white animate-pulse" />
+                      </div>
+                   </div>
+                 ) : (
+                   <Check size={20} className="text-emerald-400 drop-shadow-lg" />
+                 )}
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+      {/* CSS for scanning animation */}
+      <style>{`
+        @keyframes scan {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(76px); }
+        }
+      `}</style>
 
       {!selectedRoute ? (
         <div className="space-y-6 md:space-y-8">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
               <MapIcon size={18} className="text-indigo-500" />
-              Routes in {city}
+              {analyzingImage ? 'Analyzing location...' : `Routes in ${city}`}
             </h2>
             <div className="text-[10px] md:text-xs font-mono text-zinc-500 bg-zinc-100 dark:bg-zinc-900 px-2 md:px-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-800">
               {routes.length} LOADED
