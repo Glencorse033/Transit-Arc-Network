@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { TransitRoute, AnalyticsData, ChatMessage } from "../types.ts";
 
@@ -46,8 +45,10 @@ export const fetchRealWorldRoutes = async (location: string, coords?: { lat: num
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-lite-latest',
-      contents: `Find real-time public transit routes in ${location}. List specific bus, train, or metro lines available now. Provide their destination and any available links to official schedules.`,
+      model: 'gemini-2.5-flash',
+      contents: `Search for current public transit routes, bus lines, and train stations in or near "${location}". 
+      Identify official transit providers and list specific active routes. 
+      Provide destination information and use the googleMaps tool to find verified links to schedules or route maps.`,
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {
@@ -59,7 +60,7 @@ export const fetchRealWorldRoutes = async (location: string, coords?: { lat: num
     });
 
     return {
-      text: response.text || "No real-time data found for this location.",
+      text: response.text || "No verified transit information found for this location.",
       groundingChunks: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
     };
   } catch (error) {

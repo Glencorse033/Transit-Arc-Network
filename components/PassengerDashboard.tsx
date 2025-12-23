@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { generateRoutes, analyzeLocationFromImage, DEFAULT_ROUTES, fetchRealWorldRoutes, RealWorldTransitResponse } from '../services/geminiService.ts';
 import { TransitRoute, Ticket, PaymentLink, WalletState } from '../types.ts';
@@ -33,28 +32,52 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchRoutes = async (cityName: string) => {
-    if (!cityName.trim() && !isLiveMode) return;
+    // Basic validation
+    if (!cityName.trim() && !isLiveMode) {
+      setRoutes(DEFAULT_ROUTES);
+      return;
+    }
+
     setLoadingRoutes(true);
     setError(null);
     setRealWorldData(null);
 
     try {
       if (isLiveMode) {
-        // Use Real-world Maps Grounding
-        const pos = await new Promise<GeolocationPosition>((res, rej) => {
-          navigator.geolocation.getCurrentPosition(res, rej);
-        }).catch(() => null);
+        let pos = null;
+        
+        // Only attempt geolocation if cityName is empty (searching "nearby")
+        // or specifically requested. If cityName is provided, prioritize it.
+        if (!cityName.trim()) {
+          try {
+            pos = await new Promise<GeolocationPosition>((res, rej) => {
+              // 5 second timeout for geolocation to prevent hanging
+              navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 });
+            });
+          } catch (geoErr) {
+            console.warn("TransitArc: Geolocation unavailable or timed out.", geoErr);
+          }
+        }
 
         const result = await fetchRealWorldRoutes(cityName || "nearby", pos ? { lat: pos.coords.latitude, lng: pos.coords.longitude } : undefined);
-        setRealWorldData(result);
+        
+        if (!result.text || result.text.includes("No verified transit information")) {
+          setError(`No live transit results for "${cityName || 'your location'}". Grounding search might be restricted in this region.`);
+        } else {
+          setRealWorldData(result);
+        }
       } else {
-        // Use Simulated AI Route Generation
+        // Discovery Mode: Simulated AI Route Generation
         const result = await generateRoutes(cityName);
-        if (result.length === 0) setError("No routes found.");
-        setRoutes(result);
+        if (result.length === 0) {
+          setError(`Could not plan routes for "${cityName}". Try a different city.`);
+        } else {
+          setRoutes(result);
+        }
       }
     } catch (err) {
-      setError("Failed to fetch data. Please ensure location services are enabled.");
+      console.error("TransitArc Fetch Error:", err);
+      setError("Transit network communication failed. Please check your internet connection and try again.");
     } finally {
       setLoadingRoutes(false);
     }
@@ -77,10 +100,10 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
           setCity(detectedCity);
           fetchRoutes(detectedCity);
         } else {
-          setError("Could not identify the location.");
+          setError("Could not identify the location. Please try a clearer image.");
         }
       } catch (err) {
-        setError("Could not analyze image.");
+        setError("Could not analyze image. Try a smaller file size.");
       } finally {
         setAnalyzingImage(false);
         setTimeout(() => setImagePreview(null), 3000);
@@ -131,13 +154,13 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
       <div className="flex justify-center mb-4">
         <div className="bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl flex gap-1 border border-zinc-200 dark:border-zinc-800">
           <button 
-            onClick={() => { setIsLiveMode(false); setRealWorldData(null); }}
+            onClick={() => { setIsLiveMode(false); setRealWorldData(null); setError(null); }}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${!isLiveMode ? 'bg-white dark:bg-zinc-800 shadow-sm text-indigo-500' : 'text-zinc-500 hover:text-zinc-700'}`}
           >
             <Sparkles size={14} /> Discovery
           </button>
           <button 
-            onClick={() => { setIsLiveMode(true); }}
+            onClick={() => { setIsLiveMode(true); setRealWorldData(null); setError(null); }}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${isLiveMode ? 'bg-white dark:bg-zinc-800 shadow-sm text-emerald-500' : 'text-zinc-500 hover:text-zinc-700'}`}
           >
             <Globe size={14} /> Live Network
@@ -156,7 +179,7 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
               value={city} 
               onChange={(e) => setCity(e.target.value)} 
               className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl pl-11 pr-32 py-3.5 md:py-4 text-sm md:text-lg font-medium shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-              placeholder={isLiveMode ? "Search city or stay empty for nearby..." : "Search city, station or landmark..."}
+              placeholder={isLiveMode ? "Type city name or search empty for local..." : "Where do you want to go?"}
               onKeyDown={(e) => e.key === 'Enter' && fetchRoutes(city)}
             />
             <div className="absolute right-1.5 inset-y-1.5 flex items-center gap-1.5">
@@ -171,7 +194,7 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
               <button 
                 onClick={() => fetchRoutes(city)} 
                 disabled={loadingRoutes}
-                className={`${isLiveMode ? 'bg-emerald-500' : 'bg-zinc-900 dark:bg-white text-white dark:text-black'} px-4 md:px-6 py-2 rounded-xl text-xs md:text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50`}
+                className={`${isLiveMode ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-zinc-900 dark:bg-white text-white dark:text-black hover:opacity-90'} px-4 md:px-6 py-2 rounded-xl text-xs md:text-sm font-bold transition-all disabled:opacity-50`}
               >
                 {loadingRoutes ? <Loader2 size={16} className="animate-spin" /> : 'Search'}
               </button>
@@ -208,10 +231,10 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
           <div className="flex items-center justify-between px-1">
             <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
               {isLiveMode ? <Globe size={18} className="text-emerald-500" /> : <MapIcon size={18} className="text-indigo-500" />}
-              {isLiveMode ? "Live Transit Discovery" : city ? `Routes in ${city}` : 'Available Transit Network'}
+              {isLiveMode ? "Real-Time Grounding" : city ? `Routes in ${city}` : 'Global Network'}
             </h2>
-            <div className="text-[10px] md:text-xs font-mono text-zinc-500 bg-zinc-100 dark:bg-zinc-900 px-2 md:px-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-800">
-              {loadingRoutes ? "SEARCHING..." : isLiveMode ? "LIVE DATA" : `${routes.length} ROUTES`}
+            <div className="text-[10px] md:text-xs font-mono text-zinc-500 bg-zinc-100 dark:bg-zinc-900 px-2 md:px-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-800 uppercase tracking-widest">
+              {loadingRoutes ? "Syncing..." : isLiveMode ? "Verified Data" : `${routes.length} Available`}
             </div>
           </div>
 
@@ -221,6 +244,17 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
                 <div key={i} className="h-56 md:h-64 rounded-3xl bg-zinc-100 dark:bg-zinc-900 animate-pulse border border-zinc-200 dark:border-zinc-800" />
               ))}
             </div>
+          ) : error ? (
+            <div className="bg-white dark:bg-zinc-950 p-10 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 text-center space-y-4">
+               <AlertCircle size={48} className="mx-auto text-amber-500 opacity-50" />
+               <div className="max-w-md mx-auto">
+                 <h3 className="text-lg font-bold">Heads up!</h3>
+                 <p className="text-zinc-500 text-sm mt-2">{error}</p>
+                 <button onClick={() => { setCity(""); setRoutes(DEFAULT_ROUTES); setError(null); }} className="mt-6 text-indigo-500 font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 mx-auto">
+                   <RefreshCw size={14} /> Reset Search
+                 </button>
+               </div>
+            </div>
           ) : isLiveMode && realWorldData ? (
             <div className="bg-white dark:bg-zinc-950 p-6 md:p-8 rounded-[2.5rem] border border-emerald-500/20 shadow-xl animate-in fade-in slide-in-from-bottom-4">
                <div className="mb-6">
@@ -228,7 +262,7 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
                    <Globe size={16} />
                    <span className="text-[10px] font-bold uppercase tracking-widest">Grounded Real-Time Data</span>
                  </div>
-                 <div className="prose prose-sm dark:prose-invert max-w-none text-zinc-600 dark:text-zinc-300 whitespace-pre-line">
+                 <div className="prose prose-sm dark:prose-invert max-w-none text-zinc-600 dark:text-zinc-300 whitespace-pre-line leading-relaxed">
                    {realWorldData.text}
                  </div>
                </div>
@@ -247,7 +281,7 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
                              className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900 hover:bg-emerald-500 hover:text-white border border-zinc-200 dark:border-zinc-800 px-4 py-2 rounded-xl text-xs font-bold transition-all"
                            >
                              <ExternalLink size={14} />
-                             {chunk.maps.title || "View Schedule"}
+                             {chunk.maps.title || "View Route Details"}
                            </a>
                          )
                        ))}
