@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { WalletButton } from './components/WalletButton.tsx';
 import { PassengerDashboard } from './components/PassengerDashboard.tsx';
 import { OperatorDashboard } from './components/OperatorDashboard.tsx';
@@ -50,6 +51,52 @@ export default function App() {
     visualStyle: 'glass'
   });
 
+  const [wallet, setWallet] = useState<WalletState>({
+    isConnected: false,
+    address: null,
+    balance: 0
+  });
+
+  const syncWallet = useCallback(async () => {
+    const ethereum = (window as any).ethereum;
+    if (!ethereum) return;
+
+    try {
+      const accounts = await ethereum.request({ method: 'eth_accounts' });
+      if (accounts.length > 0) {
+        const balanceHex = await ethereum.request({ 
+          method: 'eth_getBalance', 
+          params: [accounts[0], 'latest'] 
+        });
+        // Convert Wei to ETH
+        const balance = parseInt(balanceHex, 16) / 1e18;
+        setWallet({
+          isConnected: true,
+          address: accounts[0],
+          balance: balance
+        });
+      } else {
+        setWallet({ isConnected: false, address: null, balance: 0 });
+      }
+    } catch (err) {
+      console.error("Sync failed:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    syncWallet();
+    const ethereum = (window as any).ethereum;
+    if (ethereum) {
+      ethereum.on('accountsChanged', syncWallet);
+      ethereum.on('chainChanged', () => window.location.reload());
+    }
+    return () => {
+      if (ethereum) {
+        ethereum.removeListener('accountsChanged', syncWallet);
+      }
+    };
+  }, [syncWallet]);
+
   useEffect(() => {
     const root = window.document.documentElement;
     if (settings.theme === 'dark') {
@@ -68,12 +115,6 @@ export default function App() {
     root.classList.add(fontClassMap[settings.font]);
   }, [settings]);
 
-  const [wallet, setWallet] = useState<WalletState>({
-    isConnected: false,
-    address: null,
-    balance: 0
-  });
-
   const [vault, setVault] = useState<VaultState>({
     balance: 0,
     lockedAmount: 0,
@@ -87,12 +128,8 @@ export default function App() {
   const [paymentLinks, setPaymentLinks] = useState<PaymentLink[]>([]);
   const [targetLinkId, setTargetLinkId] = useState<string | null>(null);
 
-  const connectWallet = () => {
-    setWallet({
-      isConnected: true,
-      address: '0x71C...9A23',
-      balance: 145.50
-    });
+  const connectWallet = async () => {
+    await syncWallet();
   };
 
   const disconnectWallet = () => {
@@ -103,20 +140,17 @@ export default function App() {
     });
   };
 
-  const updateBalance = (newBalance: number) => {
-    setWallet(prev => ({ ...prev, balance: newBalance }));
+  const updateBalance = () => {
+    syncWallet(); // Re-fetch the real balance from the wallet
   };
 
   const createLink = (link: PaymentLink) => {
     setPaymentLinks(prev => [link, ...prev]);
   };
 
-  const handlePayLink = (id: string) => {
+  const handlePayLink = async (id: string) => {
     setPaymentLinks(prev => prev.map(l => l.id === id ? { ...l, isPaid: true } : l));
-    const link = paymentLinks.find(l => l.id === id);
-    if (link) {
-        updateBalance(wallet.balance - link.amount);
-    }
+    syncWallet();
   };
 
   const openLinkPayment = (id?: string) => {

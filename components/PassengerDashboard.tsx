@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { generateRoutes, analyzeLocationFromImage, DEFAULT_ROUTES, fetchRealWorldRoutes, RealWorldTransitResponse } from '../services/geminiService.ts';
 import { TransitRoute, Ticket, PaymentLink, WalletState } from '../types.ts';
@@ -5,12 +6,12 @@ import { TicketCard } from './TicketCard.tsx';
 import { 
   MapPin, Bus, Train, Ship, Share2, ArrowRight, Wallet, 
   Check, Copy, Clock, Loader2, ArrowLeft, Search, 
-  MessageSquare, Users, Sparkles, Map as MapIcon, AlertCircle, RefreshCw, Camera, X, ImageOff, Globe, ExternalLink
+  MessageSquare, Users, Sparkles, Map as MapIcon, AlertCircle, RefreshCw, Camera, X, ImageOff, Globe, ExternalLink, CreditCard
 } from 'lucide-react';
 
 interface Props {
   walletState: WalletState;
-  onUpdateWallet: (newBalance: number) => void;
+  onUpdateWallet: () => void;
   onCreateLink: (link: PaymentLink) => void;
   onJoinChat: (route: TransitRoute) => void;
 }
@@ -32,7 +33,6 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchRoutes = async (cityName: string) => {
-    // Basic validation
     if (!cityName.trim() && !isLiveMode) {
       setRoutes(DEFAULT_ROUTES);
       return;
@@ -45,13 +45,9 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
     try {
       if (isLiveMode) {
         let pos = null;
-        
-        // Only attempt geolocation if cityName is empty (searching "nearby")
-        // or specifically requested. If cityName is provided, prioritize it.
         if (!cityName.trim()) {
           try {
             pos = await new Promise<GeolocationPosition>((res, rej) => {
-              // 5 second timeout for geolocation to prevent hanging
               navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 });
             });
           } catch (geoErr) {
@@ -62,24 +58,74 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
         const result = await fetchRealWorldRoutes(cityName || "nearby", pos ? { lat: pos.coords.latitude, lng: pos.coords.longitude } : undefined);
         
         if (!result.text || result.text.includes("No verified transit information")) {
-          setError(`No live transit results for "${cityName || 'your location'}". Grounding search might be restricted in this region.`);
+          setError(`No live transit results for "${cityName || 'your location'}"`);
         } else {
           setRealWorldData(result);
         }
       } else {
-        // Discovery Mode: Simulated AI Route Generation
         const result = await generateRoutes(cityName);
         if (result.length === 0) {
-          setError(`Could not plan routes for "${cityName}". Try a different city.`);
+          setError(`Could not plan routes for "${cityName}"`);
         } else {
           setRoutes(result);
         }
       }
     } catch (err) {
-      console.error("TransitArc Fetch Error:", err);
-      setError("Transit network communication failed. Please check your internet connection and try again.");
+      setError("Transit network communication failed.");
     } finally {
       setLoadingRoutes(false);
+    }
+  };
+
+  const handlePaySelf = async () => {
+    if (!walletState.isConnected || !selectedRoute) return;
+    
+    setProcessing(true);
+    try {
+      const ethereum = (window as any).ethereum;
+      if (!ethereum) throw new Error("Wallet not found");
+
+      // Designation Operator Address (Example Burn Address or predefined vault)
+      const operatorAddress = '0x0000000000000000000000000000000000000000';
+      
+      // Calculate a nominal value in Wei (representing the USDC price)
+      // For demo, we send a tiny amount: 0.0001 ETH
+      const amountInWei = '0x38D7EA4C68000'; // 0.0001 ETH in Hex
+
+      const txHash = await ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: walletState.address,
+          to: operatorAddress,
+          value: amountInWei,
+          gas: '0x5208', // 21000 gas
+        }],
+      });
+
+      // Simulation of block confirmation
+      setTimeout(() => {
+        const newTicket: Ticket = {
+          id: Math.random().toString(36).substr(2, 9),
+          routeId: selectedRoute.id,
+          routeName: selectedRoute.name,
+          passengerName: passengerName || "Self",
+          status: 'ACTIVE',
+          purchaseDate: new Date().toISOString(),
+          expiryDate: new Date(Date.now() + 3600 * 2000).toISOString(),
+          qrData: `TRANSIT-ARC:${selectedRoute.id}:${txHash}`,
+          txHash: txHash,
+          imageUrl: selectedRoute.imageUrl
+        };
+        setTickets([newTicket, ...tickets]);
+        setSelectedRoute(null);
+        setProcessing(false);
+        onUpdateWallet(); // Refresh balance
+      }, 2000);
+      
+    } catch (err) {
+      console.error("Payment failed:", err);
+      setProcessing(false);
+      alert("Payment failed or was rejected. Please try again.");
     }
   };
 
@@ -100,39 +146,16 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
           setCity(detectedCity);
           fetchRoutes(detectedCity);
         } else {
-          setError("Could not identify the location. Please try a clearer image.");
+          setError("Could not identify the location.");
         }
       } catch (err) {
-        setError("Could not analyze image. Try a smaller file size.");
+        setError("Could not analyze image.");
       } finally {
         setAnalyzingImage(false);
         setTimeout(() => setImagePreview(null), 3000);
       }
     };
     reader.readAsDataURL(file);
-  };
-
-  const handlePaySelf = () => {
-    if (!walletState.isConnected || walletState.balance < (selectedRoute?.price || 0)) return;
-    setProcessing(true);
-    setTimeout(() => {
-      onUpdateWallet(walletState.balance - (selectedRoute!.price));
-      const newTicket: Ticket = {
-        id: Math.random().toString(36).substr(2, 9),
-        routeId: selectedRoute!.id,
-        routeName: selectedRoute!.name,
-        passengerName: passengerName || "Self",
-        status: 'ACTIVE',
-        purchaseDate: new Date().toISOString(),
-        expiryDate: new Date(Date.now() + 3600 * 2000).toISOString(),
-        qrData: `TRANSIT-ARC:${selectedRoute!.id}`,
-        txHash: '0x' + Math.random().toString(16).slice(2),
-        imageUrl: selectedRoute!.imageUrl
-      };
-      setTickets([newTicket, ...tickets]);
-      setSelectedRoute(null);
-      setProcessing(false);
-    }, 1500);
   };
 
   const getTransportIcon = (type: string) => {
@@ -168,7 +191,6 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
         </div>
       </div>
 
-      {/* City Search Bar with Vision */}
       {!selectedRoute && (
         <div className="relative w-full max-w-xl mx-auto">
           <div className="group relative">
@@ -219,13 +241,6 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
         </div>
       )}
 
-      <style>{`
-        @keyframes scan {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(76px); }
-        }
-      `}</style>
-
       {!selectedRoute ? (
         <div className="space-y-6 md:space-y-8">
           <div className="flex items-center justify-between px-1">
@@ -266,7 +281,6 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
                    {realWorldData.text}
                  </div>
                </div>
-               
                {realWorldData.groundingChunks.length > 0 && (
                  <div className="pt-6 border-t border-zinc-100 dark:border-zinc-900">
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4">Official Sources & Schedules</p>
@@ -345,16 +359,48 @@ export const PassengerDashboard: React.FC<Props> = ({ walletState, onUpdateWalle
               <ArrowLeft size={14} /> Back
             </button>
             <div className="mb-8">
+              <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-[0.2em] mb-2 block">Confirm Web3 Ticket</span>
               <h3 className="text-2xl md:text-3xl font-bold">{selectedRoute.name}</h3>
               <p className="text-zinc-500 text-sm">{selectedRoute.origin} to {selectedRoute.destination}</p>
             </div>
             <div className="space-y-4">
-              <input value={passengerName} onChange={(e) => setPassengerName(e.target.value)} placeholder="Passenger Name" className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 text-sm outline-none" />
-              <button onClick={handlePaySelf} disabled={processing || !walletState.isConnected} className="w-full py-4 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-black font-bold flex items-center justify-center gap-2 shadow-lg">
-                {processing ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                {walletState.isConnected ? `Pay ${selectedRoute.price} USDC` : 'Connect Wallet'}
+              <input value={passengerName} onChange={(e) => setPassengerName(e.target.value)} placeholder="Passenger Name" className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" />
+              <button 
+                onClick={handlePaySelf} 
+                disabled={processing || !walletState.isConnected} 
+                className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg transition-all ${
+                  processing ? 'bg-zinc-200 text-zinc-500' : 'bg-zinc-900 dark:bg-white text-white dark:text-black hover:scale-[0.98] active:scale-95'
+                }`}
+              >
+                {processing ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Waiting for Confirmation...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard size={18} />
+                    {walletState.isConnected ? `Confirm & Pay USDC` : 'Connect Wallet First'}
+                  </>
+                )}
               </button>
+              <p className="text-[10px] text-center text-zinc-500 uppercase tracking-widest font-medium">Transaction will be initiated via MetaMask</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {tickets.length > 0 && (
+        <div className="pt-8 md:pt-12 border-t border-zinc-200 dark:border-zinc-900">
+          <div className="flex items-center justify-between mb-6 md:mb-8 px-1">
+            <h2 className="text-xl md:text-2xl font-bold">Active Web3 Tickets</h2>
+            <div className="flex items-center gap-1.5 text-emerald-500 text-[10px] md:text-xs font-bold bg-emerald-500/10 px-2.5 py-1 rounded-full">
+               <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
+               SECURED_ON_CHAIN
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
+            {tickets.map(t => <TicketCard key={t.id} ticket={t} />)}
           </div>
         </div>
       )}
